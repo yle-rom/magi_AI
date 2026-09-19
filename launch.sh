@@ -14,6 +14,15 @@ if pgrep -f "electron \." > /dev/null; then
   exit 0
 fi
 
+# ── Start infra and wait for MariaDB ─────
+echo "Starting MariaDB + SearXNG containers..."
+docker compose up -d
+
+echo "Waiting for MariaDB to be ready..."
+until [ "$(docker inspect -f '{{.State.Health.Status}}' magi-mariadb 2>/dev/null)" = "healthy" ]; do
+  sleep 1
+done
+
 # ── Start backend if not running ─────────
 if ! pgrep -f "node server.js" > /dev/null; then
   node server.js &
@@ -22,11 +31,6 @@ if ! pgrep -f "node server.js" > /dev/null; then
 else
   NODE_PID=$(pgrep -f "node server.js")
 fi
-
-# ── Start SearXNG cleanly ────────────────
-echo "Starting SearXNG containers..."
-docker compose up -d
-sleep 2
 
 # ── Guaranteed Cleanup Function ──────────
 cleanup() {

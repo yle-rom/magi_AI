@@ -538,11 +538,15 @@ async function fetchUrl(url) {
 //  CODE PERSONA FILE TOOLS (sandboxed)
 // ══════════════════════════════════════════════
 
-const ALLOWED_ROOTS = [
-  '/home/ely/.local/src',
-];
-
 const HOME_DIR = require('os').homedir();
+
+// Where MAGI-CODE is allowed to read/list files by default, before a chat's
+// own working_dir (set via the UI) extends it for that chat. Override via
+// MAGI_CODE_ROOT if your projects don't live under ~/.local/src (see
+// .env.example) — comma-separated for multiple roots.
+const ALLOWED_ROOTS = (process.env.MAGI_CODE_ROOT || path.join(HOME_DIR, '.local/src'))
+  .split(',')
+  .map(p => expandHome(p.trim()));
 
 // Directories under $HOME that a chat's working dir may never point at, even
 // though they're technically "under home" — credentials, keys, app configs.
@@ -564,7 +568,7 @@ function expandHome(p) {
 
 // A per-chat "project directory" the user opts into (see /chats working_dir) —
 // this is what lets magi-code work in an arbitrary project without every
-// message having to say "work in /home/ely/whatever". Read tools accept it as
+// message having to say "work in /home/you/whatever". Read tools accept it as
 // an extra allowed root; write tools require it and are scoped to ONLY it.
 // Requires an absolute (or ~-prefixed) path — a bare relative path has no
 // sane base to resolve against here, so it's rejected rather than silently

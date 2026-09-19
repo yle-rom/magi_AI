@@ -34,9 +34,10 @@ ollama pull WhiteRabbitNeo/WhiteRabbitNeo-2.5-Qwen-2.5-Coder-7B
 ollama pull dolphin3:8b
 ollama pull nomic-embed-text
 
-# 2. Configure the DB password
+# 2. Configure the DB password (and, if needed, MAGI_CODE_ROOT)
 cp .env.example .env
-# edit .env and set MAGI_DB_PASS to something real
+# edit .env: set MAGI_DB_PASS to something real, and MAGI_CODE_ROOT if your
+# projects don't live under ~/.local/src (see .env.example for details)
 
 # 3. Set up your personal prompts dir (gitignored — edit freely, never committed)
 cp -r prompts_example prompts
@@ -61,6 +62,8 @@ Each persona is defined in two places that must share the same `id`:
 - **`prompts/<id>.md`** — the system prompt: personality, rules, tool-use guidance, and (for `magi-core`) a "System Context" section worth filling in with your actual OS/shell/editor/hardware so answers about your own machine are accurate.
 
 `prompts/` starts as a copy of `prompts_example/` (step 3 above) and is gitignored, so your personalized edits never get committed. To add a new persona, add an entry to `config.js` and a matching `prompts/<new-id>.md`.
+
+`magi-code`'s file tools are sandboxed to `MAGI_CODE_ROOT` (env var, default `~/.local/src`) plus whatever working directory you set per-chat in the UI — set `MAGI_CODE_ROOT` in `.env` if your projects live elsewhere.
 
 ## Theming
 
