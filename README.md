@@ -61,6 +61,10 @@ Each persona is defined in two places that must share the same `id`:
 
 `prompts/` starts as a copy of `prompts_example/` (step 3 above) and is gitignored, so your personalized edits never get committed. To add a new persona, add an entry to `config.js` and a matching `prompts/<new-id>.md`.
 
+## Theming
+
+The UI is themed with CSS variables (`--wal-bg`, `--wal-fg`, `--wal-accent`) defined in `index.html` and derives its whole palette from them via `color-mix()`. If you run [pywal](https://github.com/dylanaraps/pywal), MAGI automatically picks up `~/.cache/wal/colors.json` and re-themes live whenever you rerun `wal`. If you don't use pywal, nothing else is needed — the app just keeps the built-in default palette (warm cream/brown) defined at the top of `index.html`'s `<style>` block. To use your own static palette instead, edit those three `--wal-*` values directly.
+
 ## ⚠️ Content warning: `magi-unlocked`
 
 One included persona, `magi-unlocked`, is deliberately built with no refusals or safety guardrails — it will discuss drugs, weapons, piracy (including site recommendations), explicit content, and similar topics without hedging, on the premise that it's a single person talking to a model on their own hardware. It's meant for personal local use only. If you don't want this persona available, delete its entry from `config.js` and remove `prompts/magi-unlocked.md` (and `prompts_example/magi-unlocked.md` in your own fork) before running.
