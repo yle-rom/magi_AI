@@ -1,0 +1,1704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MAGI INTELLIGENCE</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=JetBrains+Mono:wght@100..800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    /* Raw anchors — these three (plus --msg-user-text) are the only vars JS
+       ever touches (see applyWalTheme). Everything else below is derived from
+       them via color-mix so background/text/panel tones can never collide,
+       regardless of what palette pywal hands us. */
+    --wal-bg:       #e8d8c9;
+    --wal-fg:       #1a1008;
+    --wal-accent:   #f3701e;
+
+    /* Background family — stays close to --wal-bg (<=20% fg mixed in) */
+    --bg:           var(--wal-bg);
+    --bg-dark:      color-mix(in srgb, var(--wal-bg) 92%, var(--wal-fg));
+    --bg-darker:    color-mix(in srgb, var(--wal-bg) 85%, var(--wal-fg));
+    --panel-bg:     color-mix(in srgb, var(--wal-bg) 90%, var(--wal-fg));
+    --msg-ai:       color-mix(in srgb, var(--wal-bg) 88%, var(--wal-fg));
+
+    /* Text family — stays close to --wal-fg (>=50% fg) — deliberate gap from
+       the background family above so the two can never land on the same color */
+    --text:         var(--wal-fg);
+    --text-mid:     color-mix(in srgb, var(--wal-fg) 75%, var(--wal-bg));
+    --text-muted:   color-mix(in srgb, var(--wal-fg) 50%, var(--wal-bg));
+
+    /* Accent family */
+    --accent:       var(--wal-accent);
+    --accent-dim:   color-mix(in srgb, var(--wal-accent) 80%, black);
+    --accent-glow:  color-mix(in srgb, var(--wal-accent) 15%, transparent);
+    --border:       var(--wal-accent);
+    --border-soft:  color-mix(in srgb, var(--wal-accent) 30%, transparent);
+    --msg-user:     var(--wal-accent);
+    --msg-user-text: #ffffff;
+
+    /* AI response bubble — themed off the same anchors instead of fixed hex */
+    --msg-ai-bg:        color-mix(in srgb, var(--wal-bg) 78%, var(--wal-fg));
+    --msg-ai-text:      var(--wal-fg);
+    --msg-ai-border:    color-mix(in srgb, var(--wal-fg) 20%, transparent);
+    --msg-ai-accent:    color-mix(in srgb, var(--wal-accent) 70%, var(--wal-fg));
+    --msg-ai-code-bg:   color-mix(in srgb, var(--wal-fg) 22%, var(--wal-bg));
+    --msg-ai-code-text: color-mix(in srgb, var(--wal-fg) 88%, var(--wal-bg));
+    /* Code blocks stay "inverted" (text-family bg, bg-family text) so they
+       read as a terminal and stay high-contrast regardless of theme direction */
+    --code-block-bg:    color-mix(in srgb, var(--wal-fg) 92%, var(--wal-bg));
+    --code-block-text:  color-mix(in srgb, var(--wal-bg) 92%, var(--wal-fg));
+
+    --glyph-color:  #8a5a00; /* overridden at init from MAGI-CODE's persona color */
+
+    --sidebar-w:    260px;
+    --font-mono:    'Share Tech Mono', monospace;
+    --font-ui:      'Rajdhani', sans-serif;
+    --font-code:    'Space Mono', monospace;
+    /* Chat message text specifically — 'Share Tech Mono' ships one static
+       weight, so font-weight on it does nothing. This is a real variable
+       font (100-800), so a light weight like 250 actually renders lighter. */
+    --font-msg:     'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-ui); background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+  #topbar { height: 48px; background: var(--bg-dark); border-bottom: 2px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; z-index: 100; }
+  #sidebar-toggle { background: none; border: 1.5px solid var(--border-soft); color: var(--accent); width: 32px; height: 32px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; transition: all 0.2s; flex-shrink: 0; }
+  #sidebar-toggle:hover { background: var(--accent-glow); border-color: var(--accent); }
+  #topbar-title { font-family: var(--font-mono); font-size: 15px; font-weight: 700; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; flex: 1; }
+  #topbar-title span { color: var(--text-mid); font-weight: 400; }
+  #active-model-badge { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); background: var(--bg); border: 1px solid var(--border-soft); padding: 3px 10px; border-radius: 2px; letter-spacing: 1px; text-transform: uppercase; }
+
+  #layout { display: flex; flex: 1; overflow: hidden; }
+
+  #sidebar { width: var(--sidebar-w); background: var(--panel-bg); border-right: 2px solid var(--border); display: flex; flex-direction: column; transition: width 0.25s ease, opacity 0.25s ease; overflow: hidden; flex-shrink: 0; }
+  #sidebar.collapsed { width: 0; border-right-width: 0; opacity: 0; }
+  .sidebar-section { padding: 12px 0; border-bottom: 1px solid var(--border-soft); }
+  .sidebar-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--text-muted); padding: 0 14px 8px; text-transform: uppercase; }
+  .persona-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: none; border: none; cursor: pointer; transition: background 0.15s; font-family: var(--font-ui); font-size: 14px; font-weight: 600; color: var(--text-mid); letter-spacing: 1px; text-align: left; }
+  .persona-btn:hover { background: var(--accent-glow); }
+  .persona-btn.active { background: var(--accent-glow); color: var(--accent); border-left: 3px solid var(--accent); padding-left: 11px; }
+  .persona-dot { font-family: var(--font-mono); font-size: 13px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; color: var(--glyph-color); }
+  .persona-desc { font-size: 10px; font-weight: 400; color: var(--text-muted); font-family: var(--font-mono); letter-spacing: 0; margin-top: 1px; }
+  .persona-info { display: flex; flex-direction: column; }
+
+  #past-chats { flex: 1; overflow-y: auto; padding: 8px 0; }
+  #past-chats::-webkit-scrollbar { width: 4px; }
+  #past-chats::-webkit-scrollbar-track { background: transparent; }
+  #past-chats::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 2px; }
+
+  .chat-entry { display: flex; align-items: center; gap: 8px; padding: 7px 14px; cursor: pointer; transition: background 0.15s; position: relative; }
+  .chat-entry:hover { background: var(--accent-glow); }
+  .chat-entry.active-chat { background: var(--accent-glow); }
+  .chat-entry-dot { font-family: var(--font-mono); font-size: 10px; line-height: 1; width: 12px; text-align: center; flex-shrink: 0; opacity: 0.6; color: var(--glyph-color); }
+  .chat-entry-info { flex: 1; min-width: 0; padding-right: 72px; }
+  .chat-entry-model { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; }
+  .chat-entry-title { font-size: 12px; color: var(--text-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+
+  /* Action buttons — always in DOM, visibility controlled per button */
+  .chat-actions { display: flex; position: absolute; right: 8px; gap: 2px; align-items: center; }
+
+  .action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: var(--font-ui);
+    color: var(--text-muted);
+    transition: color 0.15s, opacity 0.15s;
+    padding: 4px 6px;
+    border-radius: 3px;
+    line-height: 1;
+    opacity: 0;
+  }
+  .chat-entry:hover .action-btn { opacity: 1; }
+  .action-btn:hover { color: var(--accent); background: var(--accent-glow); }
+
+  /* Pin button — always visible when pinned */
+  .pin-btn { font-size: 14px; }
+  .pin-btn.pinned { opacity: 1 !important; color: var(--accent); }
+  .pin-btn:not(.pinned) { opacity: 0; }
+  .chat-entry:hover .pin-btn { opacity: 1; }
+
+  .new-chat-btn { width: calc(100% - 28px); margin: 10px 14px; padding: 8px; background: none; border: 1.5px solid var(--border-soft); color: var(--accent); font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; cursor: pointer; border-radius: 3px; transition: all 0.2s; }
+  .new-chat-btn:hover { background: var(--accent-glow); border-color: var(--accent); }
+
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  #model-header { padding: 14px 24px 10px; border-bottom: 1px solid var(--border-soft); display: flex; align-items: baseline; gap: 12px; flex-shrink: 0; }
+  #model-name { font-family: var(--font-mono); font-size: 18px; color: var(--glyph-color); letter-spacing: 3px; font-weight: 700; text-transform: uppercase; }
+  #model-status { margin-left: auto; display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: #4caf50; animation: pulse-green 2s infinite; }
+  @keyframes pulse-green { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  /* ── Model-swap loading indicator ── */
+  #model-swap-indicator { display: none; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 12px; color: var(--accent); letter-spacing: 0.5px; }
+  .swap-spinner { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--border-soft); border-top-color: var(--accent); animation: swap-spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes swap-spin { to { transform: rotate(360deg); } }
+
+  /* ── VRAM readout ── */
+  #vram-status { display: flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); letter-spacing: 0.5px; }
+  #vram-bar { width: 54px; height: 6px; border-radius: 3px; background: var(--border-soft); overflow: hidden; }
+  #vram-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; }
+  #vram-status.warn #vram-bar-fill { background: #d98c1f; }
+  #vram-status.crit #vram-bar-fill { background: #e53935; }
+  #vram-label { white-space: nowrap; }
+
+  /* ── Per-message generation stats ── */
+  .msg-stats { font-family: var(--font-msg); font-size: 13px; letter-spacing: 0.5px; color: var(--text-muted); margin-top: 5px; opacity: 0.8; display: flex; gap: 10px; flex-wrap: wrap; }
+  .msg-stats.live { opacity: 1; color: var(--accent); }
+  .msg-stats .stat-dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: pulse-green 1s infinite; margin-right: 5px; }
+
+  #chat-area { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
+  #chat-area::-webkit-scrollbar { width: 5px; }
+  #chat-area::-webkit-scrollbar-track { background: transparent; }
+  #chat-area::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 3px; }
+  .msg { display: flex; flex-direction: column; max-width: 80%; animation: msg-in 0.2s ease; }
+  @keyframes msg-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .msg.user { align-self: flex-end; }
+  .msg.ai   { align-self: flex-start; }
+  .msg-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
+  .msg.user .msg-label { text-align: right; }
+  .msg.ai .msg-label { color: var(--glyph-color); }
+  .msg-bubble { padding: 12px 16px; border-radius: 3px; font-size: 17px; line-height: 1.6; border: 1.5px solid transparent; word-break: break-word; }
+  .msg.user .msg-bubble { background: var(--accent); color: var(--msg-user-text); border-color: var(--accent-dim); font-family: var(--font-msg); font-weight: 250; white-space: pre-wrap; }
+  .msg.ai .msg-bubble { background: var(--msg-ai-bg); border-color: var(--msg-ai-border); font-family: var(--font-msg); color: var(--msg-ai-text); font-weight: 250; }
+  .msg.ai .msg-bubble p { margin: 0 0 8px; }
+  .msg.ai .msg-bubble p:last-child { margin-bottom: 0; }
+  .msg.ai .msg-bubble strong { color: var(--msg-ai-accent); font-weight: 700; }
+  .msg.ai .msg-bubble em { font-style: italic; opacity: 0.85; }
+  .msg.ai .msg-bubble code { font-family: var(--font-code); font-size: 13px; background: var(--msg-ai-code-bg); padding: 1px 6px; border-radius: 2px; color: var(--msg-ai-code-text); }
+  .msg.ai .msg-bubble pre { background: var(--code-block-bg); border: 1px solid var(--border-soft); border-radius: 3px; padding: 10px 12px; margin: 8px 0; overflow-x: auto; position: relative; }
+  .msg.ai .msg-bubble pre code { background: none; padding: 0; color: var(--code-block-text); font-size: 13px; line-height: 1.5; }
+  .copy-btn { position: absolute; top: 6px; right: 6px; background: var(--accent-glow); border: 1px solid var(--border-soft); color: var(--text-muted); font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px; padding: 3px 8px; border-radius: 2px; cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s, border-color 0.15s; text-transform: uppercase; }
+  .msg.ai .msg-bubble pre:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .copy-btn.copied { color: #4caf50; border-color: #4caf50; }
+
+  /* ── Link box (URLs in AI responses) ── */
+  .link-box { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; background: var(--msg-ai-code-bg); border: 1px solid var(--border-soft); border-radius: 3px; padding: 3px 4px 3px 10px; margin: 1px 0; font-family: var(--font-code); font-size: 12px; vertical-align: middle; }
+  .link-box .link-url { color: var(--msg-ai-code-text); overflow-wrap: anywhere; word-break: break-all; }
+  .link-box .copy-btn { position: static; opacity: 1; flex-shrink: 0; padding: 2px 7px; font-size: 8px; }
+
+  .msg.ai .msg-bubble ul, .msg.ai .msg-bubble ol { padding-left: 20px; margin: 6px 0; }
+  .msg.ai .msg-bubble li { margin-bottom: 3px; }
+  .msg.ai .msg-bubble h1, .msg.ai .msg-bubble h2, .msg.ai .msg-bubble h3 { font-family: var(--font-mono); color: var(--msg-ai-accent); letter-spacing: 1px; margin: 10px 0 4px; font-size: 13px; }
+  .msg.ai .msg-bubble hr { border: none; border-top: 1px solid var(--msg-ai-border); margin: 8px 0; }
+
+  .thinking { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: var(--msg-ai); border: 1.5px solid var(--border-soft); border-radius: 3px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+  .thinking-dots span { animation: blink 1.2s infinite; font-size: 16px; line-height: 1; }
+  .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+  #thinking-elapsed { margin-left: auto; opacity: 0.75; white-space: nowrap; }
+  #thinking-status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  #empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; opacity: 0.5; }
+  #empty-state .big-name { font-family: var(--font-mono); font-size: 42px; color: var(--accent); letter-spacing: 8px; font-weight: 700; }
+  #empty-state .sub { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 3px; }
+
+  #input-bar { padding: 12px 24px 16px; border-top: 2px solid var(--border); background: var(--bg-dark); flex-shrink: 0; }
+  #input-row { display: flex; gap: 10px; align-items: flex-end; }
+  #input-wrap { flex: 1; position: relative; }
+  #user-input { display: block; box-sizing: border-box; width: 100%; background: var(--bg); border: 2px solid var(--border-soft); color: var(--text); font-family: var(--font-ui); font-size: 16px; font-weight: 500; padding: 11px 14px; border-radius: 3px; resize: none; outline: none; transition: border-color 0.2s; height: 46px; min-height: 46px; max-height: 160px; line-height: 20px; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; margin: 0; }
+  #user-input::-webkit-scrollbar { display: none; }
+  #user-input:focus { border-color: var(--accent); }
+  #user-input::placeholder { color: var(--text-muted); font-weight: 400; }
+  #send-btn, #attach-btn { box-sizing: border-box; height: 46px; margin: 0; border-radius: 3px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+  #send-btn { background: var(--accent); border: 2px solid var(--accent-dim); color: #fff; width: 46px; font-size: 16px; }
+  #send-btn:hover { background: var(--accent-dim); transform: translateY(-1px); }
+  #send-btn:active { transform: translateY(0); }
+  #send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  #send-btn.stop { background: #1a1008; border-color: var(--accent); color: var(--accent); font-size: 13px; letter-spacing: 1px; font-family: var(--font-mono); }
+  #send-btn.stop:hover { background: var(--accent-glow); transform: translateY(-1px); }
+  #attach-btn { background: var(--bg-darker); border: 2px solid var(--border-soft); color: var(--text-muted); width: 46px; }
+  #attach-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  #staged-file { display: none; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; background: var(--accent-glow); color: var(--accent); border: 1px solid var(--accent); padding: 4px 10px; border-radius: 2px; margin-bottom: 8px; width: fit-content; }
+  .remove-file { cursor: pointer; font-weight: bold; padding: 0 4px; }
+
+  #workdir-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 6px 10px; background: var(--panel-bg); border: 1.5px dashed var(--border-soft); border-radius: 3px; }
+  #workdir-icon { display: flex; align-items: center; flex-shrink: 0; color: var(--text-muted); }
+  #workdir-input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-family: var(--font-mono); font-size: 12px; padding: 2px 0; }
+  #workdir-input::placeholder { color: var(--text-muted); }
+  #workdir-status { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.5px; color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
+  #workdir-status.active { color: #4caf50; }
+  #workdir-status.invalid { color: #e53935; }
+  #workdir-input-wrap { position: relative; flex: 1; }
+  #workdir-input-wrap #workdir-input { width: 100%; box-sizing: border-box; }
+  #workdir-suggestions { display: none; position: absolute; bottom: calc(100% + 6px); left: 0; right: 0; max-height: 220px; overflow-y: auto; background: var(--bg-darker); border: 1.5px solid var(--accent); border-radius: 3px; box-shadow: 0 -6px 18px rgba(0,0,0,0.35); z-index: 20; }
+  .workdir-suggestion { padding: 6px 10px; font-family: var(--font-mono); font-size: 12px; color: var(--text); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .workdir-suggestion:hover, .workdir-suggestion.active { background: var(--accent-glow); color: var(--accent); }
+
+  #toggles-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .toggle-btn { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: none; border: 1.5px solid var(--border-soft); border-radius: 2px; font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; color: var(--text-muted); cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+  .toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .toggle-btn.on { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+  .toggle-btn .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; transition: background 0.2s; }
+
+  /* ── Streaming cursor ── */
+  .stream-cursor { display: inline-block; width: 8px; height: 14px; background: var(--accent); opacity: 0.8; animation: blink-cursor 0.9s infinite; vertical-align: text-bottom; margin-left: 1px; border-radius: 1px; }
+  @keyframes blink-cursor { 0%, 49% { opacity: 0.8; } 50%, 100% { opacity: 0; } }
+
+  /* ── Think block ── */
+  .think-block { margin: 4px 0 10px; border-left: 2px solid var(--border-soft); padding: 6px 12px; background: rgba(0,0,0,0.06); border-radius: 0 3px 3px 0; cursor: pointer; }
+  .think-block summary { font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; color: var(--text-muted); text-transform: uppercase; list-style: none; display: flex; align-items: center; gap: 6px; }
+  .think-block summary::before { content: '▶'; font-size: 8px; transition: transform 0.15s; }
+  details[open].think-block summary::before { transform: rotate(90deg); }
+  .think-content { font-family: var(--font-mono); font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-top: 6px; white-space: pre-wrap; }
+
+  /* ── Tool approval card ── */
+  .tool-approval { align-self: flex-start; max-width: 90%; animation: msg-in 0.2s ease; margin: 4px 0; }
+  .tool-approval-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; }
+  .tool-approval-bubble { background: var(--panel-bg); border: 1.5px solid var(--accent); border-radius: 3px; padding: 12px 14px; }
+  .tool-approval-header { font-family: var(--font-mono); font-size: 11px; color: var(--accent); letter-spacing: 1px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .tool-approval-persona { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+  .tool-approval-reason { font-family: var(--font-ui); font-size: 13px; color: var(--text-mid); margin-bottom: 8px; line-height: 1.4; }
+  .tool-approval-cmd { background: #1a1008; border: 1px solid var(--border-soft); border-radius: 3px; padding: 8px 12px; font-family: var(--font-code); font-size: 12px; color: #e8d8c9; margin-bottom: 10px; white-space: pre-wrap; word-break: break-all; }
+  .tool-approval-btns { display: flex; gap: 8px; }
+  .tool-approve-btn { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; padding: 6px 16px; border-radius: 2px; cursor: pointer; border: 1.5px solid; transition: all 0.15s; text-transform: uppercase; }
+  .tool-approve-btn.approve { border-color: #4caf50; color: #4caf50; background: none; }
+  .tool-approve-btn.approve:hover { background: rgba(76,175,80,0.12); }
+  .tool-approve-btn.deny { border-color: var(--border-soft); color: var(--text-muted); background: none; }
+  .tool-approve-btn.deny:hover { border-color: #e53935; color: #e53935; background: rgba(229,57,53,0.1); }
+  .tool-approval-result { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; padding: 4px 0; }
+
+  /* ── File-edit diff preview ── */
+  .diff-file-path { font-family: var(--font-mono); font-size: 12px; color: var(--text-mid); margin-bottom: 6px; display: flex; align-items: center; gap: 10px; word-break: break-all; }
+  .diff-stat { flex-shrink: 0; font-size: 10px; }
+  .diff-add-count { color: #4caf50; }
+  .diff-remove-count { color: #e53935; }
+  .diff-box { background: #1a1008; border: 1px solid var(--border-soft); border-radius: 3px; padding: 6px 0; margin-bottom: 10px; max-height: 320px; overflow-y: auto; font-family: var(--font-code); font-size: 12px; line-height: 1.5; }
+  .diff-line { padding: 0 10px; white-space: pre-wrap; word-break: break-all; }
+  .diff-line.diff-context { color: #a89484; }
+  .diff-line.diff-add { color: #7ee787; background: rgba(76,175,80,0.12); }
+  .diff-line.diff-remove { color: #f28b82; background: rgba(229,57,53,0.12); }
+  .diff-line.diff-meta { color: var(--text-muted); font-style: italic; }
+  .tool-approval-result.approved { color: #4caf50; }
+  .tool-approval-result.denied  { color: var(--text-muted); }
+
+  /* ── Memory panel ── */
+  #memory-btn { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; color: var(--text-muted); background: none; border: 1.5px solid var(--border-soft); border-radius: 2px; padding: 5px 10px; cursor: pointer; transition: all 0.2s; text-transform: uppercase; flex-shrink: 0; }
+  #memory-btn:hover { border-color: var(--accent); color: var(--accent); }
+  #memory-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 500; align-items: center; justify-content: center; }
+  #memory-overlay.open { display: flex; }
+  #memory-panel { width: min(760px, 92vw); height: min(640px, 86vh); background: var(--panel-bg); border: 2px solid var(--border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; }
+  #memory-header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 2px solid var(--border); flex-shrink: 0; }
+  #memory-header h2 { font-family: var(--font-mono); font-size: 14px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+  #memory-count { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+  #memory-close { margin-left: auto; background: none; border: none; color: var(--text-muted); font-size: 18px; cursor: pointer; line-height: 1; padding: 2px 6px; }
+  #memory-close:hover { color: var(--accent); }
+  #memory-search-row { padding: 10px 18px; border-bottom: 1px solid var(--border-soft); flex-shrink: 0; }
+  #memory-search { width: 100%; background: var(--bg); border: 1.5px solid var(--border-soft); color: var(--text); font-family: var(--font-ui); font-size: 13px; padding: 7px 10px; border-radius: 3px; outline: none; }
+  #memory-search:focus { border-color: var(--accent); }
+  #memory-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+  #memory-list::-webkit-scrollbar { width: 5px; }
+  #memory-list::-webkit-scrollbar-thumb { background: var(--border-soft); border-radius: 3px; }
+  .memory-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 18px; border-bottom: 1px solid var(--border-soft); }
+  .memory-row:hover { background: var(--accent-glow); }
+  .memory-row-dot { font-family: var(--font-mono); font-size: 12px; line-height: 1; width: 14px; text-align: center; flex-shrink: 0; margin-top: 3px; color: var(--glyph-color); }
+  .memory-row-body { flex: 1; min-width: 0; }
+  .memory-row-meta { font-family: var(--font-mono); font-size: 9px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; display: flex; gap: 8px; }
+  .memory-row-text { font-size: 13px; color: var(--text-mid); line-height: 1.4; white-space: pre-wrap; word-break: break-word; max-height: 4.2em; overflow: hidden; }
+  .memory-row-del { background: none; border: 1.5px solid var(--border-soft); color: var(--text-muted); font-family: var(--font-mono); font-size: 9px; letter-spacing: 1px; padding: 4px 8px; border-radius: 2px; cursor: pointer; flex-shrink: 0; transition: all 0.15s; text-transform: uppercase; }
+  .memory-row-del:hover { border-color: #e53935; color: #e53935; background: rgba(229,57,53,0.1); }
+  #memory-empty { padding: 40px 18px; text-align: center; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); letter-spacing: 1px; }
+  #memory-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px; border-top: 1px solid var(--border-soft); flex-shrink: 0; }
+  #memory-pagination button { background: none; border: 1.5px solid var(--border-soft); color: var(--text-muted); font-family: var(--font-mono); font-size: 10px; padding: 5px 12px; border-radius: 2px; cursor: pointer; }
+  #memory-pagination button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  #memory-pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
+  #memory-page-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <button id="sidebar-toggle" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+  <div id="topbar-title">MAGI <span>INTELLIGENCE</span></div>
+  <button id="memory-btn" onclick="openMemoryPanel()" title="Browse / manage RAG memory">🧠 Memory</button>
+  <div id="active-model-badge">MAGI-CORE</div>
+</div>
+
+<div id="memory-overlay" onclick="if(event.target===this) closeMemoryPanel()">
+  <div id="memory-panel">
+    <div id="memory-header">
+      <h2>RAG Memory</h2>
+      <span id="memory-count"></span>
+      <button id="memory-close" onclick="closeMemoryPanel()" title="Close">✕</button>
+    </div>
+    <div id="memory-search-row">
+      <input id="memory-search" type="text" placeholder="Filter stored memories..." oninput="onMemorySearchInput()">
+    </div>
+    <div id="memory-list"></div>
+    <div id="memory-pagination">
+      <button id="memory-prev" onclick="memoryPage(-1)">‹ Prev</button>
+      <span id="memory-page-label"></span>
+      <button id="memory-next" onclick="memoryPage(1)">Next ›</button>
+    </div>
+  </div>
+</div>
+
+<div id="layout">
+  <div id="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Personas</div>
+      <div id="persona-list"></div>
+    </div>
+    <button class="new-chat-btn" onclick="newChat()">+ NEW CHAT</button>
+    <div class="sidebar-label" style="padding: 8px 14px 4px;">History</div>
+    <div id="past-chats"></div>
+  </div>
+
+  <div id="main">
+    <div id="model-header">
+      <div id="model-name">MAGI-CORE</div>
+      <div id="model-swap-indicator"><span class="swap-spinner"></span><span id="model-swap-text"></span></div>
+      <div id="vram-status" title="Ollama VRAM usage">
+        <span id="vram-label">VRAM —</span>
+        <div id="vram-bar"><div id="vram-bar-fill" style="width:0%"></div></div>
+      </div>
+      <div id="model-status">
+        <div class="status-dot"></div>
+        ONLINE
+      </div>
+    </div>
+
+    <div id="chat-area">
+      <div id="empty-state">
+        <div class="big-name">MAGI</div>
+        <div class="sub">Select a persona — begin query</div>
+      </div>
+    </div>
+
+    <div id="input-bar">
+      <div id="workdir-row" style="display:none">
+        <span id="workdir-icon"><svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M1.5 3.5a1 1 0 0 1 1-1h3.5l1.2 1.6h6.3a1 1 0 0 1 1 1v7.4a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z"/></svg></span>
+        <div id="workdir-input-wrap">
+          <input id="workdir-input" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="Set working dir"
+                 oninput="onWorkdirInput()" onkeydown="onWorkdirKeydown(event)" onfocus="onWorkdirInput()" onblur="onWorkdirBlur()">
+          <div id="workdir-suggestions"></div>
+        </div>
+        <span id="workdir-status"></span>
+      </div>
+      <div id="toggles-row">
+        <button class="toggle-btn" id="toggle-websearch" onclick="toggleFeature('websearch')">
+          <span class="dot"></span> Web Search
+        </button>
+        <button class="toggle-btn" id="toggle-memory" onclick="toggleFeature('memory')">
+          <span class="dot"></span> System Memory
+        </button>
+        <button class="toggle-btn" id="toggle-think" onclick="toggleFeature('think')" style="display:none">
+          <span class="dot"></span> Think
+        </button>
+      </div>
+
+      <div id="staged-file">
+        <span id="staged-file-name">filename.txt</span>
+        <span class="remove-file" onclick="clearFile()">✕</span>
+      </div>
+
+      <div id="input-row">
+        <button id="attach-btn" onclick="document.getElementById('file-upload').click()" title="Attach Document">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+        <input type="file" id="file-upload" style="display: none;" onchange="handleFileUpload(event)" multiple>
+        <div id="input-wrap">
+          <textarea id="user-input" placeholder="Enter query..." rows="1"
+            onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        </div>
+        <button id="send-btn" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="./config.js"></script>
+<script>
+const GLYPH_COLOR = (PERSONAS.find(p => p.id === 'magi-code') || {}).color || '#8a5a00';
+const GLYPH = (PERSONAS.find(p => p.id === 'magi-core') || {}).glyph || '◈';
+document.documentElement.style.setProperty('--glyph-color', GLYPH_COLOR);
+
+let state = {
+  activePersona: PERSONAS.find(p => p.id === 'magi-core'),
+  activeChatId: null,
+  chats: {},
+  features: getDefaultFeatures('magi-core'),
+  sidebarOpen: true,
+  isLoading: false
+};
+
+function getDefaultFeatures(id) {
+  return {
+    websearch: true,
+    memory:    true,
+    think:     id === 'magi-sensei'
+  };
+}
+
+function activeModel() {
+  return state.activePersona.model;
+}
+
+function updateThinkToggle() {
+  const btn = document.getElementById('toggle-think');
+  const supports = state.activePersona?.supportsThink;
+  btn.style.display = supports ? '' : 'none';
+  btn.classList.toggle('on', state.features.think);
+}
+
+let stagedFilesContext = "";
+let activeAbortController = null;
+
+async function handleFileUpload(event) {
+  const files = Array.from(event.target.files);
+  if (files.length === 0) return;
+  const readAsText = (file) => new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(`[ATTACHED FILE: ${file.name}]\n\n${e.target.result}\n\n[END ATTACHED FILE]\n`);
+    reader.readAsText(file);
+  });
+  const fileContents = await Promise.all(files.map(readAsText));
+  stagedFilesContext = fileContents.join('\n');
+  const uiName = files.length === 1 ? files[0].name : `${files.length} files`;
+  document.getElementById('staged-file-name').textContent = uiName;
+  document.getElementById('staged-file').style.display = 'flex';
+  event.target.value = '';
+}
+
+function clearFile() {
+  stagedFilesContext = "";
+  document.getElementById('staged-file').style.display = 'none';
+}
+
+// ── Pywal theme sync ────────────────────────────────────────────────────────
+function relativeLuminance(hex) {
+  hex = hex.replace('#', '');
+  const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const r = lin(parseInt(hex.substring(0, 2), 16));
+  const g = lin(parseInt(hex.substring(2, 4), 16));
+  const b = lin(parseInt(hex.substring(4, 6), 16));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+async function applyWalTheme() {
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/theme`);
+    if (!res.ok) return; // pywal cache not present yet — keep default palette
+    const wal = await res.json();
+    const c = wal.colors, s = wal.special;
+    const root = document.documentElement.style;
+
+    // Only the raw anchors get set — every other CSS var is derived from
+    // these via color-mix() in :root, which keeps background/text/panel
+    // tones structurally distinct no matter what palette pywal produces.
+    root.setProperty('--wal-bg', s.background);
+    root.setProperty('--wal-fg', s.foreground);
+    root.setProperty('--wal-accent', c.color3);
+    root.setProperty('--msg-user-text', relativeLuminance(c.color3) > 0.5 ? '#1a1008' : '#ffffff');
+  } catch (e) { /* theming is cosmetic — never block the app on it */ }
+}
+
+function watchWalTheme() {
+  try {
+    const es = new EventSource(`${CONFIG.API_URL}/theme/stream`);
+    es.onmessage = () => applyWalTheme();
+    es.onerror = () => {}; // connection drop is fine, EventSource auto-reconnects
+  } catch (e) {}
+}
+
+async function init() {
+  applyWalTheme();
+  watchWalTheme();
+  renderPersonas();
+  document.getElementById('toggle-websearch').classList.toggle('on', state.features.websearch);
+  document.getElementById('toggle-memory').classList.toggle('on', state.features.memory);
+  updateThinkToggle();
+  await loadFromDB();
+  renderChatHistory();
+  const existingEmpty = Object.entries(state.chats).find(([id, chat]) => chat.title === 'New chat' && chat.persona === state.activePersona.id
+  );
+  if (existingEmpty) { state.activeChatId = existingEmpty[0]; renderChatArea(); } else { createNewChat(); }
+  ensureInitialModelLoaded();
+  pollVramStatus();
+  setInterval(pollVramStatus, 5000);
+}
+
+// Cold app launch never goes through applyPersonaHeader (the default persona
+// is already the header's static HTML), so without this the very first model
+// load — which can take the same 2-3s as any other swap — showed no feedback
+// at all. Checks once whether the default persona's model is actually
+// resident in VRAM yet and, if not, shows the same swap loader as a real switch.
+async function ensureInitialModelLoaded() {
+  const persona = state.activePersona;
+  const model = activeModel();
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/system/status`);
+    const data = await res.json();
+    const loaded = (data.models || []).some(m => normalizeModelName(m.name) === normalizeModelName(model));
+    if (!loaded) showModelSwapLoader(model, () => applyHeaderLabel(persona));
+  } catch (e) {}
+}
+
+// ── VRAM / loaded-model header readout ──────────────────────────────────────
+async function pollVramStatus() {
+  const label = document.getElementById('vram-label');
+  const fill  = document.getElementById('vram-bar-fill');
+  const box   = document.getElementById('vram-status');
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/system/status`);
+    if (!res.ok) throw new Error('status fetch failed');
+    const data = await res.json();
+    const usedGb  = data.totalVramBytes / (1024 ** 3);
+    const totalGb = CONFIG.TOTAL_VRAM_GB || 8;
+    const pct = Math.min(100, (usedGb / totalGb) * 100);
+    // The embedding model (nomic-embed-text) is always resident for RAG — surfacing
+    // it here is just noise, so only list the conversational models actually loaded.
+    const visibleModels = data.models.filter(m => !m.name.startsWith('nomic-embed-text'));
+    const names = visibleModels.map(m => m.name.replace(/:latest$/, '')).join(', ');
+    label.textContent = visibleModels.length
+      ? `VRAM ${usedGb.toFixed(1)}/${totalGb}GB · ${names}`
+      : `VRAM ${usedGb.toFixed(1)}/${totalGb}GB · idle`;
+    fill.style.width = `${pct}%`;
+    box.classList.toggle('warn', pct >= 75 && pct < 92);
+    box.classList.toggle('crit', pct >= 92);
+  } catch (e) {
+    label.textContent = 'VRAM —';
+    fill.style.width = '0%';
+    box.classList.remove('warn', 'crit');
+  }
+}
+
+async function loadFromDB() {
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/chats`);
+    const chats = await res.json();
+    state.chats = {};
+    for (const chat of chats) {
+      state.chats[chat.id] = { persona: chat.persona, title: chat.title, pinned: chat.pinned == 1 ? 1 : 0, workingDir: chat.working_dir || null, messages: [] };
+    }
+  } catch(e) { console.error('DB Load Error:', e); }
+}
+
+function toggleSidebar() {
+  state.sidebarOpen = !state.sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('collapsed', !state.sidebarOpen);
+}
+
+function toggleFeature(key) {
+  state.features[key] = !state.features[key];
+  document.getElementById('toggle-' + key).classList.toggle('on', state.features[key]);
+}
+
+function renderPersonas() {
+  document.getElementById('persona-list').innerHTML = PERSONAS.map(p => `
+    <button class="persona-btn ${p.id === state.activePersona.id ? 'active' : ''}" onclick="selectPersona('${p.id}')">
+      <div class="persona-dot">${GLYPH}</div>
+      <div class="persona-info"><span>${p.name}</span><span class="persona-desc">${p.subtitle}</span></div>
+    </button>`).join('');
+}
+
+// Syncs every header/toggle element to state.activePersona. Used whenever the
+// active persona changes, whether via the sidebar picker or opening a chat
+// that belongs to a different persona (loadChat) — both must stay in sync,
+// which prior to this was only done in selectPersona and the header would go
+// stale when jumping between chats on different models.
+function applyPersonaHeader(id, { resetFeatures = true } = {}) {
+  const prevModel = state.activePersona ? activeModel() : null;
+
+  state.activePersona = PERSONAS.find(p => p.id === id);
+  if (resetFeatures) {
+    state.features = getDefaultFeatures(id);
+  }
+  document.getElementById('toggle-websearch').classList.toggle('on', state.features.websearch);
+  document.getElementById('toggle-memory').classList.toggle('on', state.features.memory);
+  updateThinkToggle();
+  renderPersonas();
+  document.getElementById('active-model-badge').textContent = state.activePersona.name;
+
+  // The header's model-name/subtitle/dot must reflect what's actually LOADED
+  // in Ollama, not just what was clicked — otherwise the name flips the
+  // instant you pick a persona while the old model is still answering with
+  // the previous one. If a real model swap is needed, hold the old label
+  // until showModelSwapLoader confirms the new model is resident.
+  const newModel  = activeModel();
+  const persona   = state.activePersona;
+  if (prevModel && prevModel !== newModel) {
+    showModelSwapLoader(newModel, () => applyHeaderLabel(persona));
+  } else {
+    applyHeaderLabel(persona);
+  }
+  syncWorkdirRow();
+}
+
+// ── Working-directory picker (MAGI-CODE write access) ───────────────────────
+function syncWorkdirRow() {
+  const row    = document.getElementById('workdir-row');
+  const input  = document.getElementById('workdir-input');
+  const status = document.getElementById('workdir-status');
+  const chat   = state.chats[state.activeChatId];
+  const isCode = state.activePersona?.id === 'magi-code';
+  row.style.display = isCode ? 'flex' : 'none';
+  if (!isCode) return;
+  input.value = chat?.workingDir || '';
+  status.textContent = chat?.workingDir ? 'WRITE ENABLED' : 'READ-ONLY';
+  status.className = chat?.workingDir ? 'active' : '';
+}
+
+async function onWorkdirChange() {
+  const chat = state.chats[state.activeChatId];
+  if (!chat) return;
+  const input  = document.getElementById('workdir-input');
+  const status = document.getElementById('workdir-status');
+  const newDir = input.value.trim() || null;
+  if (newDir === (chat.workingDir || null)) return;
+
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/chats/${state.activeChatId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workingDir: newDir })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      status.textContent = 'INVALID DIR';
+      status.className = 'invalid';
+      input.title = body.error || '';
+      return;
+    }
+    // The server expands "~" and resolves to a canonical absolute path (this is
+    // what fixed the bug where "~/foo" got stored and used literally, producing
+    // nonsense paths like ".../magi_AI/~/foo") — always reflect what it actually
+    // stored, never just the raw text that was typed.
+    input.title = '';
+    chat.workingDir = body.workingDir ?? newDir;
+    syncWorkdirRow();
+  } catch (e) {
+    status.textContent = 'ERROR';
+    status.className = 'invalid';
+  }
+}
+
+// ── Working-directory "mini shell" tab-completion ───────────────────────────
+let workdirSuggestions   = [];
+let workdirSuggestIndex  = -1;
+let workdirFetchTimer    = null;
+
+function onWorkdirInput() {
+  clearTimeout(workdirFetchTimer);
+  workdirFetchTimer = setTimeout(fetchWorkdirSuggestions, 120);
+}
+
+async function fetchWorkdirSuggestions() {
+  const input = document.getElementById('workdir-input');
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/fs/browse?path=${encodeURIComponent(input.value)}`);
+    const data = await res.json();
+    renderWorkdirSuggestions(data.entries || []);
+  } catch (e) {
+    renderWorkdirSuggestions([]);
+  }
+}
+
+function renderWorkdirSuggestions(entries) {
+  workdirSuggestions  = entries;
+  workdirSuggestIndex = -1;
+  const box = document.getElementById('workdir-suggestions');
+  if (!entries.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = entries.map((e, i) =>
+    `<div class="workdir-suggestion" onmousedown="event.preventDefault(); selectWorkdirSuggestion(${i})">${escHtml(e)}</div>`
+  ).join('');
+  box.style.display = 'block';
+}
+
+function highlightWorkdirSuggestion() {
+  [...document.getElementById('workdir-suggestions').children].forEach(
+    (el, i) => el.classList.toggle('active', i === workdirSuggestIndex)
+  );
+}
+
+function selectWorkdirSuggestion(i) {
+  const entry = workdirSuggestions[i];
+  if (!entry) return;
+  const input = document.getElementById('workdir-input');
+  input.value = entry + '/';
+  input.focus();
+  fetchWorkdirSuggestions(); // immediately show what's one level deeper
+}
+
+function hideWorkdirSuggestions() {
+  const box = document.getElementById('workdir-suggestions');
+  box.style.display = 'none';
+  box.innerHTML = '';
+  workdirSuggestions  = [];
+  workdirSuggestIndex = -1;
+}
+
+function onWorkdirKeydown(e) {
+  if (e.key === 'Tab' && workdirSuggestions.length) {
+    e.preventDefault();
+    selectWorkdirSuggestion(workdirSuggestIndex >= 0 ? workdirSuggestIndex : 0);
+    return;
+  }
+  if (e.key === 'ArrowDown' && workdirSuggestions.length) {
+    e.preventDefault();
+    workdirSuggestIndex = Math.min(workdirSuggestIndex + 1, workdirSuggestions.length - 1);
+    highlightWorkdirSuggestion();
+    return;
+  }
+  if (e.key === 'ArrowUp' && workdirSuggestions.length) {
+    e.preventDefault();
+    workdirSuggestIndex = Math.max(workdirSuggestIndex - 1, 0);
+    highlightWorkdirSuggestion();
+    return;
+  }
+  if (e.key === 'Escape') { hideWorkdirSuggestions(); return; }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (workdirSuggestIndex >= 0) selectWorkdirSuggestion(workdirSuggestIndex);
+    else { hideWorkdirSuggestions(); e.target.blur(); }
+  }
+}
+
+function onWorkdirBlur() {
+  hideWorkdirSuggestions();
+  onWorkdirChange();
+}
+
+function applyHeaderLabel(persona) {
+  document.getElementById('model-name').textContent = persona.name;
+  document.querySelector('.status-dot').style.background = persona.color;
+}
+
+// ── Model-swap loading indicator ────────────────────────────────────────────
+// Ollama has to unload the old model and load the new one into VRAM on a real
+// persona/model switch (a real 2-3s stall) — poll /system/status until the
+// target model shows up loaded, so the header shows *something* is happening,
+// and only then hand control back via onLoaded (which flips the header label).
+let modelSwapToken = null;
+const normalizeModelName = n => n.replace(/:latest$/, '');
+
+async function showModelSwapLoader(modelName, onLoaded) {
+  if (modelSwapToken) modelSwapToken.cancelled = true;
+  const token = { cancelled: false };
+  modelSwapToken = token;
+
+  const indicator = document.getElementById('model-swap-indicator');
+  const text      = document.getElementById('model-swap-text');
+  text.textContent = `Loading ${modelName}…`;
+  indicator.style.display = 'flex';
+
+  const deadline = Date.now() + 15000;
+  while (!token.cancelled && Date.now() < deadline) {
+    try {
+      const res = await fetch(`${CONFIG.API_URL}/system/status`);
+      const data = await res.json();
+      const loaded = (data.models || []).some(m => normalizeModelName(m.name) === normalizeModelName(modelName));
+      if (loaded) break;
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 400));
+  }
+  if (token.cancelled) return; // a newer switch superseded this one — it already applied its own label
+  indicator.style.display = 'none';
+  onLoaded();
+}
+
+async function selectPersona(id) {
+  applyPersonaHeader(id);
+
+  const currentChat = state.chats[state.activeChatId];
+  const isUntouchedChat = currentChat && currentChat.messages.length === 0 && currentChat.title === 'New chat';
+
+  if (isUntouchedChat) {
+    // Just sitting in an empty chat — repoint it to the new persona instead of spawning another.
+    currentChat.persona = id;
+    try {
+      await fetch(`${CONFIG.API_URL}/chats/${state.activeChatId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ persona: id })
+      });
+    } catch(e) {}
+    renderChatHistory();
+  } else {
+    await newChat();
+  }
+}
+
+async function createNewChat() {
+  const id = 'chat_' + Date.now();
+  const persona = state.activePersona.id;
+  try { await fetch(`${CONFIG.API_URL}/chats`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, persona, title: 'New chat' }) }); } catch(e) {}
+  state.chats[id] = { persona, title: 'New chat', pinned: 0, workingDir: null, messages: [] };
+  state.activeChatId = id;
+  renderChatArea();
+  renderChatHistory();
+}
+
+async function newChat() { await createNewChat(); }
+
+async function loadChat(id) {
+  state.activeChatId = id;
+  const chat = state.chats[id];
+  const persona = PERSONAS.find(p => p.id === chat.persona);
+  if (persona && persona.id !== state.activePersona?.id) applyPersonaHeader(persona.id);
+  if (chat.messages.length === 0) {
+    try {
+      const res = await fetch(`${CONFIG.API_URL}/chats/${id}/messages`);
+      chat.messages = (await res.json()).map(m => ({ role: m.role, content: m.content }));
+    } catch(e) {}
+  }
+  renderChatArea();
+  renderChatHistory();
+}
+
+async function pinChat(id, event) {
+  event.stopPropagation();
+  const chat = state.chats[id];
+  chat.pinned = chat.pinned === 1 ? 0 : 1;
+  try {
+    await fetch(`${CONFIG.API_URL}/chats/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned: chat.pinned })
+    });
+  } catch(e) {}
+  const currentActive = state.activeChatId;
+  await loadFromDB();
+  state.activeChatId = currentActive;
+  renderChatHistory();
+}
+
+async function editChat(id, event) {
+  event.stopPropagation();
+  const chat = state.chats[id];
+  const entryElement = event.target.closest('.chat-entry');
+  const titleDiv = entryElement.querySelector('.chat-entry-title');
+  if (titleDiv.querySelector('input')) return;
+  const currentTitle = chat.title;
+  titleDiv.innerHTML = `<input type="text" id="edit-title-${id}" value="${escHtml(currentTitle)}"
+    style="width: 100%; background: var(--bg); border: 1px solid var(--accent); color: var(--text);
+    font-family: var(--font-ui); font-size: 12px; padding: 2px 4px; border-radius: 2px; outline: none;">`;
+  const input = document.getElementById(`edit-title-${id}`);
+  input.focus();
+  input.select();
+  const saveTitle = async () => {
+    const newTitle = input.value.trim();
+    if (newTitle && newTitle !== currentTitle) {
+      chat.title = newTitle;
+      try { await fetch(`${CONFIG.API_URL}/chats/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: chat.title }) }); } catch(e) {}
+    }
+    renderChatHistory();
+  };
+  input.addEventListener('blur', saveTitle);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') saveTitle();
+    if (e.key === 'Escape') renderChatHistory();
+  });
+}
+
+async function deleteChat(id, event) {
+  event.stopPropagation();
+  try { await fetch(`${CONFIG.API_URL}/chats/${id}`, { method: 'DELETE' }); } catch(e) {}
+  delete state.chats[id];
+  if (state.activeChatId === id) {
+    const remainingIds = Object.keys(state.chats);
+    if (remainingIds.length > 0) await loadChat(remainingIds[0]);
+    else await createNewChat();
+  } else {
+    renderChatHistory();
+  }
+}
+
+function renderChatHistory() {
+  const container = document.getElementById('past-chats');
+  const entries = Object.entries(state.chats)
+    .sort(([,a], [,b]) => (b.pinned === 1 ? 1 : 0) - (a.pinned === 1 ? 1 : 0));
+  if (entries.length === 0) {
+    container.innerHTML = '<div style="padding:8px 14px;font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">No history</div>';
+    return;
+  }
+  container.innerHTML = entries.map(([id, chat]) => {
+    const p = PERSONAS.find(p => p.id === chat.persona);
+    const isPinned = chat.pinned === 1;
+    return `
+      <div class="chat-entry ${id === state.activeChatId ? 'active-chat' : ''}" onclick="loadChat('${id}')">
+        <div class="chat-entry-dot">${GLYPH}</div>
+        <div class="chat-entry-info">
+          <div class="chat-entry-model">${p ? p.name : chat.persona}</div>
+          <div class="chat-entry-title">${escHtml(chat.title)}</div>
+        </div>
+        <div class="chat-actions">
+          <button class="action-btn pin-btn ${isPinned ? 'pinned' : ''}" onclick="pinChat('${id}', event)" title="${isPinned ? 'Unpin' : 'Pin'}">⊙</button>
+          <button class="action-btn" onclick="editChat('${id}', event)" title="Edit Name">✏</button>
+          <button class="action-btn" onclick="deleteChat('${id}', event)" title="Delete">⊘</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderChatArea() {
+  syncWorkdirRow();
+  const area = document.getElementById('chat-area');
+  const chat = state.chats[state.activeChatId];
+  if (!chat || chat.messages.length === 0) {
+    area.innerHTML = `<div id="empty-state"><div class="big-name">MAGI</div><div class="sub">Select a persona — begin query</div></div>`;
+    return;
+  }
+  area.innerHTML = chat.messages.map(m => {
+    let displayContent = m.content;
+    if (m.role === 'user' && m.content.includes('[ATTACHED FILE:')) {
+      displayContent = m.content.split('\n\n[ATTACHED FILE:')[0] || "(Sent an attached document)";
+    }
+    const bubbleContent = m.role === 'user' ? escHtml(displayContent) : parseMarkdown(displayContent);
+    return `
+    <div class="msg ${m.role === 'user' ? 'user' : 'ai'}">
+      <div class="msg-label">${m.role === 'user' ? 'YOU' : state.activePersona.name}</div>
+      <div class="msg-bubble">${bubbleContent}</div>
+    </div>`;
+  }).join('');
+  area.scrollTop = area.scrollHeight;
+}
+
+function appendMessage(role, content) {
+  const area = document.getElementById('chat-area');
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = `msg ${role === 'user' ? 'user' : 'ai'}`;
+  const bubbleContent = role === 'user' ? escHtml(content) : parseMarkdown(content);
+  div.innerHTML = `<div class="msg-label">${role === 'user' ? 'YOU' : state.activePersona.name}</div><div class="msg-bubble">${bubbleContent}</div>`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+
+function showThinking() {
+  const area = document.getElementById('chat-area');
+  const div = document.createElement('div');
+  div.id = 'thinking-indicator';
+  div.className = 'msg ai';
+  div.innerHTML = `<div class="msg-label">${state.activePersona.name}</div><div class="thinking"><span id="thinking-status">PROCESSING</span><div class="thinking-dots"><span>·</span><span>·</span><span>·</span></div><span id="thinking-elapsed"></span></div>`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  // This is the ticker that actually matters — tool calls, approval waits,
+  // and model "thinking" all happen in this window, before any SSE token
+  // exists to hang a live counter off of. See the note above genStartTime.
+  startLiveTicker(() => {
+    const el = document.getElementById('thinking-elapsed');
+    if (!el || genStartTime == null) return;
+    const elapsedS = (performance.now() - genStartTime) / 1000;
+    // gen_meta arrives (with the real token count) before any token/thinking
+    // text is replayed, so this can already show a real number, not a guess.
+    const tokPart = pendingGenMeta?.completionTokens != null ? ` · ${pendingGenMeta.completionTokens} tok` : '';
+    el.textContent = `· ${elapsedS.toFixed(1)}s${tokPart}`;
+  });
+}
+
+// Set by tool_status/thinking_start SSE events to describe what the model is
+// currently doing (searching, reading a file, running a command, …) instead
+// of a static "PROCESSING" label. Reset to the default on the next turn.
+function setThinkingStatus(text) {
+  const el = document.getElementById('thinking-status');
+  if (el) el.textContent = text;
+}
+
+function removeThinking() {
+  const el = document.getElementById('thinking-indicator');
+  if (el) el.remove();
+}
+
+function setStopMode(active) {
+  const btn = document.getElementById('send-btn');
+  if (active) {
+    btn.disabled = false;
+    btn.classList.add('stop');
+    btn.innerHTML = '■';
+    btn.onclick = stopResponse;
+  } else {
+    btn.classList.remove('stop');
+    btn.innerHTML = '➤';
+    btn.onclick = sendMessage;
+  }
+}
+
+function stopResponse() {
+  if (activeAbortController) {
+    activeAbortController.abort();
+    activeAbortController = null;
+  }
+}
+
+// ── SSE consumer helper (returns final text from a /chat/generate stream) ──
+async function consumeSSEText(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const reader  = res.body.getReader();
+  const decoder = new TextDecoder();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = decoder.decode(value, { stream: true });
+    for (const line of chunk.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      try {
+        const ev = JSON.parse(line.slice(6));
+        if (ev.type === 'done') return ev.content || '';
+      } catch {}
+    }
+  }
+  return '';
+}
+
+async function generateChatTitle(chatId) {
+  const chat = state.chats[chatId];
+  if (!chat) return;
+  try {
+    const content = await consumeSSEText(`${CONFIG.API_URL}/chat/generate`, {
+      chatId,
+      model: 'qwen3:8b',
+      systemPrompt: 'You generate short chat titles. Respond with ONLY 3-5 words. No punctuation. No quotes. Nothing else.',
+      userMessage: 'Summarize this conversation as a 3-5 word title.',
+      personaId: 'magi-core',
+      allowSearch: false,
+      allowMemory: false,
+      allowThink: false,
+      options: { temperature: 0.3, num_ctx: 2048 }
+    });
+    if (content) {
+      const title = content.trim().slice(0, 36);
+      chat.title = title;
+      await fetch(`${CONFIG.API_URL}/chats/${chatId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+      });
+      renderChatHistory();
+    }
+  } catch(e) {}
+}
+
+// ── Streaming message helpers ──────────────────────────────────────────────
+let streamBubble    = null;
+let streamThinkEl   = null;
+let streamBuffer    = '';
+let thinkBuffer     = '';
+let isThinking      = false;
+
+// Live time+token tracker. The backend calls Ollama non-streaming, waits for
+// the FULL response, then replays it to the client as a fast typewriter
+// effect — so real elapsed time (thinking, tool calls, waiting on your
+// approval clicks) all happens BEFORE any SSE token ever arrives. A ticker
+// wired only to the token stream would flash for a few ms at the very end
+// and never be seen, especially on tool-heavy turns. So this ticks from the
+// moment the request goes out (via showThinking()) and hands off to the
+// message bubble's own ticker once real text starts arriving.
+let genStartTime  = null; // set by sendMessage() right before the request goes out
+let liveTickTimer = null;
+
+// Real usage numbers from Ollama, known the instant generation finishes —
+// well before any text has been replayed to the client. Set on 'gen_meta',
+// cleared at the start of each new turn. When present, the live tickers use
+// this instead of the char-count guess, since we already have the truth.
+let pendingGenMeta = null;
+
+function startLiveTicker(updateFn) {
+  stopLiveTicker();
+  updateFn();
+  liveTickTimer = setInterval(updateFn, 150);
+}
+
+function stopLiveTicker() {
+  if (liveTickTimer) clearInterval(liveTickTimer);
+  liveTickTimer = null;
+}
+
+let liveStatsDiv = null;
+let liveStatsEl  = null;
+
+function startLiveStats(container) {
+  const div = document.createElement('div');
+  div.className = 'msg-stats live';
+  div.innerHTML = '<span class="stat-dot"></span><span class="live-text"></span>';
+  container.appendChild(div);
+  liveStatsDiv = div;
+  liveStatsEl  = div.querySelector('.live-text');
+  startLiveTicker(updateLiveStats);
+}
+
+function updateLiveStats() {
+  if (!liveStatsEl || genStartTime == null) return;
+  const elapsedS = (performance.now() - genStartTime) / 1000;
+  if (pendingGenMeta?.completionTokens != null) {
+    // gen_meta already told us the real total — no need to guess.
+    liveStatsEl.textContent = `${elapsedS.toFixed(1)}s · ${pendingGenMeta.completionTokens} tok`;
+  } else {
+    // Fallback for the rare true-streaming path, where the real count isn't
+    // known until 'done' — estimate from characters seen so far.
+    const estTokens = Math.round(streamBuffer.length / 4);
+    liveStatsEl.textContent = `${elapsedS.toFixed(1)}s · ~${estTokens} tok`;
+  }
+}
+
+function createStreamingBubble() {
+  const area  = document.getElementById('chat-area');
+  const empty = document.getElementById('empty-state');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.id = 'streaming-msg';
+  div.innerHTML = `<div class="msg-label">${state.activePersona.name}</div><div class="msg-bubble"><span class="stream-cursor"></span></div>`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+  streamBubble  = div.querySelector('.msg-bubble');
+  streamBuffer  = '';
+  thinkBuffer   = '';
+  isThinking    = false;
+  streamThinkEl = null;
+  startLiveStats(div);
+  updateLiveStats(); // reflect pendingGenMeta immediately if it already arrived
+  return div;
+}
+
+let streamThinkSummaryEl = null;
+let thinkClientStart = null;
+
+function handleThinkStart() {
+  isThinking = true;
+  thinkClientStart = performance.now();
+  if (!streamThinkEl) {
+    const details = document.createElement('details');
+    details.className = 'think-block';
+    details.open = true;
+    details.innerHTML = '<summary>Thinking…</summary><div class="think-content"></div>';
+    streamBubble.insertBefore(details, streamBubble.querySelector('.stream-cursor'));
+    streamThinkSummaryEl = details.querySelector('summary');
+    streamThinkEl = details.querySelector('.think-content');
+  }
+}
+
+function handleThinkToken(text) {
+  thinkBuffer += text;
+  if (streamThinkEl) streamThinkEl.textContent = thinkBuffer;
+}
+
+function handleThinkEnd(thinkMs) {
+  isThinking = false;
+  const elapsed = thinkMs != null ? thinkMs : (thinkClientStart != null ? performance.now() - thinkClientStart : null);
+  if (streamThinkSummaryEl) {
+    streamThinkSummaryEl.textContent = elapsed != null ? `Thought for ${(elapsed / 1000).toFixed(1)}s` : 'Thinking';
+  }
+  const details = streamThinkEl?.closest('details.think-block');
+  if (details) details.open = false;
+}
+
+function appendStreamToken(text) {
+  streamBuffer += text;
+  const cursor = streamBubble.querySelector('.stream-cursor');
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = parseMarkdown(streamBuffer);
+  // Re-render response content only (keep think block if present)
+  const existingThink = streamBubble.querySelector('details.think-block');
+  streamBubble.innerHTML = '';
+  if (existingThink) streamBubble.appendChild(existingThink);
+  while (tempDiv.firstChild) streamBubble.appendChild(tempDiv.firstChild);
+  const newCursor = document.createElement('span');
+  newCursor.className = 'stream-cursor';
+  streamBubble.appendChild(newCursor);
+  document.getElementById('chat-area').scrollTop = document.getElementById('chat-area').scrollHeight;
+}
+
+function finalizeStreamBubble(stats) {
+  if (!streamBubble) return streamBuffer;
+  stopLiveTicker();
+  const existingThink = streamBubble.querySelector('details.think-block');
+  streamBubble.innerHTML = '';
+  if (existingThink) streamBubble.appendChild(existingThink);
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = parseMarkdown(streamBuffer);
+  while (tempDiv.firstChild) streamBubble.appendChild(tempDiv.firstChild);
+
+  // Total time + total tokens only — tok/s and prompt-context size were more
+  // noise than signal for a quick glance under each reply.
+  const parts = [];
+  if (stats?.totalMs != null) parts.push(`${(stats.totalMs / 1000).toFixed(1)}s`);
+  if (stats?.completionTokens != null) parts.push(`${stats.completionTokens} tok`);
+
+  if (liveStatsDiv) {
+    if (parts.length) {
+      liveStatsDiv.className = 'msg-stats';
+      liveStatsDiv.textContent = parts.join(' · ');
+    } else {
+      liveStatsDiv.remove(); // e.g. stopped/errored before any usage numbers came back
+    }
+  }
+  liveStatsDiv = null;
+
+  streamBubble.closest('#streaming-msg')?.removeAttribute('id');
+  streamBubble = null;
+  genStartTime = null;
+  return streamBuffer;
+}
+
+// ── Tool approval ──────────────────────────────────────────────────────────
+function showApprovalCard(requestId, cmd, persona, reason) {
+  const area = document.getElementById('chat-area');
+  const div  = document.createElement('div');
+  div.className = 'tool-approval';
+  div.id = `approval-${requestId}`;
+  div.innerHTML = `
+    <div class="tool-approval-label">Terminal Request</div>
+    <div class="tool-approval-bubble">
+      <div class="tool-approval-header">
+        ⬡ RUN TERMINAL
+        <span class="tool-approval-persona">${escHtml(persona)}</span>
+      </div>
+      ${reason ? `<div class="tool-approval-reason">${escHtml(reason)}</div>` : ''}
+      <div class="tool-approval-cmd">${escHtml(cmd)}</div>
+      <div class="tool-approval-btns">
+        <button class="tool-approve-btn approve" onclick="approveTool('${requestId}', true)">▶ Execute</button>
+        <button class="tool-approve-btn deny"    onclick="approveTool('${requestId}', false)">✕ Deny</button>
+      </div>
+    </div>`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+
+// ── File-edit approval (write_file / edit_file) — diff preview, Claude-Code-style ──
+function renderDiffHtml(diff) {
+  if (!diff || diff.length === 0) return '<div class="diff-line diff-meta">(no changes)</div>';
+  return diff.map(op => {
+    const prefix = op.type === 'add' ? '+' : op.type === 'remove' ? '-' : op.type === 'meta' ? '·' : ' ';
+    return `<div class="diff-line diff-${op.type}">${escHtml(prefix)} ${escHtml(op.line)}</div>`;
+  }).join('');
+}
+
+function showFileApprovalCard(requestId, tool, filePath, isNewFile, reason, diff, persona) {
+  const area = document.getElementById('chat-area');
+  const div  = document.createElement('div');
+  div.className = 'tool-approval';
+  div.id = `approval-${requestId}`;
+  const label = tool === 'write_file' ? (isNewFile ? 'CREATE FILE' : 'OVERWRITE FILE') : 'EDIT FILE';
+  const added   = diff.filter(o => o.type === 'add').length;
+  const removed = diff.filter(o => o.type === 'remove').length;
+  div.innerHTML = `
+    <div class="tool-approval-label">File Change Request</div>
+    <div class="tool-approval-bubble">
+      <div class="tool-approval-header">
+        ✎ ${label}
+        <span class="tool-approval-persona">${escHtml(persona)}</span>
+      </div>
+      ${reason ? `<div class="tool-approval-reason">${escHtml(reason)}</div>` : ''}
+      <div class="diff-file-path">${escHtml(filePath)} <span class="diff-stat"><span class="diff-add-count">+${added}</span> <span class="diff-remove-count">-${removed}</span></span></div>
+      <div class="diff-box">${renderDiffHtml(diff)}</div>
+      <div class="tool-approval-btns">
+        <button class="tool-approve-btn approve" onclick="approveTool('${requestId}', true)">▶ Apply</button>
+        <button class="tool-approve-btn deny"    onclick="approveTool('${requestId}', false)">✕ Deny</button>
+      </div>
+    </div>`;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
+}
+
+async function approveTool(requestId, approved) {
+  const card = document.getElementById(`approval-${requestId}`);
+  if (card) {
+    const btns = card.querySelector('.tool-approval-btns');
+    const result = document.createElement('div');
+    result.className = `tool-approval-result ${approved ? 'approved' : 'denied'}`;
+    result.textContent = approved ? '▶ Executing...' : '✕ Denied';
+    if (btns) btns.replaceWith(result);
+  }
+  try {
+    await fetch(`${CONFIG.API_URL}/tool/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestId, approved })
+    });
+  } catch(e) { console.error('Approval failed:', e); }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('user-input');
+  const text  = input.value.trim();
+  if ((!text && !stagedFilesContext) || state.isLoading) return;
+
+  let fullMessageToAI = text;
+  if (stagedFilesContext) fullMessageToAI = text ? `${text}\n\n${stagedFilesContext}` : stagedFilesContext;
+
+  state.isLoading = true;
+  setStopMode(true);
+  input.value = '';
+  autoResize(input);
+  clearFile();
+
+  const chatId = state.activeChatId;
+  const chat   = state.chats[chatId];
+
+  if (chat.messages.length === 0) {
+    const titleText = text || "File Analysis";
+    chat.title = titleText.slice(0, 36) + (titleText.length > 36 ? '…' : '');
+    try { await fetch(`${CONFIG.API_URL}/chats/${chatId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: chat.title }) }); } catch(e) {}
+    renderChatHistory();
+  }
+
+  const displayMessage = text ? text : "(Sent an attached document)";
+  appendMessage('user', displayMessage);
+  chat.messages.push({ role: 'user', content: fullMessageToAI });
+
+  genStartTime = performance.now();
+  pendingGenMeta = null;
+  showThinking();
+  activeAbortController = new AbortController();
+
+  try {
+    const res = await fetch(`${CONFIG.API_URL}/chat/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: activeAbortController.signal,
+      body: JSON.stringify({
+        chatId,
+        model:        activeModel(),
+        systemPrompt: state.activePersona.systemPrompt,
+        userMessage:  fullMessageToAI,
+        personaId:    state.activePersona.id,
+        allowSearch:  state.features.websearch,
+        allowMemory:  state.features.memory,
+        allowThink:   state.features.think,
+        options:      state.activePersona.options,
+        workingDir:   chat.workingDir || null
+      })
+    });
+
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let msgDiv = null;
+    let finalContent = '';
+
+    const processLine = (line) => {
+      if (!line.startsWith('data: ')) return;
+      let ev;
+      try { ev = JSON.parse(line.slice(6)); } catch { return; }
+
+      switch (ev.type) {
+        case 'token':
+          if (!msgDiv) { removeThinking(); msgDiv = createStreamingBubble(); }
+          appendStreamToken(ev.text);
+          break;
+
+        case 'gen_meta':
+          pendingGenMeta = { promptTokens: ev.promptTokens, completionTokens: ev.completionTokens };
+          break;
+
+        case 'tool_status': {
+          const labels = {
+            search_web:        q => `Searching web: "${q.query || ''}"`,
+            fetch_url:         q => `Fetching ${q.url || ''}`,
+            search_past_chats: q => `Searching past chats: "${q.query || ''}"`,
+            run_terminal:      q => `Running: ${q.cmd || ''}`,
+            read_file:         q => `Reading ${q.path || ''}`,
+            list_dir:          q => `Listing ${q.path || '.'}`,
+            grep:              q => `Searching for "${q.pattern || ''}"`,
+            write_file:        q => `Writing ${q.path || ''}`,
+            edit_file:         q => `Editing ${q.path || ''}`,
+          };
+          const fn = labels[ev.tool];
+          let text = fn ? fn(ev.args || {}) : `Using tool: ${ev.tool}`;
+          if (text.length > 70) text = text.slice(0, 67) + '…';
+          setThinkingStatus(text.toUpperCase());
+          break;
+        }
+
+        case 'thinking_start':
+          if (!msgDiv) { removeThinking(); msgDiv = createStreamingBubble(); }
+          handleThinkStart();
+          break;
+
+        case 'thinking_token':
+          handleThinkToken(ev.text);
+          break;
+
+        case 'thinking_end':
+          handleThinkEnd(ev.thinkMs);
+          break;
+
+        case 'tool_request':
+          if (ev.tool === 'write_file' || ev.tool === 'edit_file') {
+            showFileApprovalCard(ev.requestId, ev.tool, ev.path, ev.isNewFile, ev.reason, ev.diff, ev.persona);
+          } else {
+            showApprovalCard(ev.requestId, ev.cmd, ev.persona, ev.reason);
+          }
+          break;
+
+        case 'tool_response': {
+          const card = document.getElementById(`approval-${ev.requestId}`);
+          if (card) {
+            const result = card.querySelector('.tool-approval-result');
+            if (result) result.textContent = ev.approved ? '▶ Approved' : '✕ Denied';
+          }
+          break;
+        }
+
+        case 'done':
+          finalContent = ev.content || finalizeStreamBubble(ev);
+          if (msgDiv) finalizeStreamBubble(ev);
+          break;
+
+        case 'error':
+          removeThinking();
+          if (msgDiv) finalizeStreamBubble();
+          appendMessage('assistant', `⚠ Backend Error: ${ev.message}`);
+          break;
+      }
+    };
+
+    let partial = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      partial += decoder.decode(value, { stream: true });
+      const lines = partial.split('\n');
+      partial = lines.pop(); // keep incomplete line
+      for (const line of lines) processLine(line);
+    }
+    if (partial) processLine(partial);
+
+    removeThinking();
+    if (msgDiv && streamBubble) finalizeStreamBubble();
+
+    if (finalContent) {
+      chat.messages.push({ role: 'assistant', content: finalContent });
+      const userMsgCount = chat.messages.filter(m => m.role === 'user').length;
+      if (userMsgCount === 3) generateChatTitle(chatId);
+    }
+
+  } catch(e) {
+    removeThinking();
+    if (streamBubble) finalizeStreamBubble();
+    if (e.name === 'AbortError') {
+      appendMessage('assistant', '⚠ Response stopped.');
+    } else {
+      appendMessage('assistant', `⚠ Connection failed: ${e.message}`);
+    }
+  }
+
+  stopLiveTicker(); // belt-and-suspenders — normally already stopped by finalizeStreamBubble()
+  activeAbortController = null;
+  state.isLoading = false;
+  setStopMode(false);
+  input.focus();
+}
+
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function autoResize(el) {
+  el.style.height = '46px';
+  el.style.height = Math.min(Math.max(el.scrollHeight, 46), 160) + 'px';
+}
+function parseMarkdown(text) {
+    text = text.replace(/<think>[\s\S]*?<\/think>\s*/g, '').replace(/<think>[\s\S]*/g, '');
+
+  // Step 1: extract code blocks before any other processing
+  const codeBlocks = [];
+text = text.replace(/(?:^|\n)```(\w*)\r?\n([\s\S]*?)```/g, (_, lang, code) => {
+    const placeholder = `\x00CODE${codeBlocks.length}\x00`;
+    codeBlocks.push(`<pre><button class="copy-btn" onclick="copyCode(this)">COPY</button><code>${escHtml(code)}</code></pre>`);
+    return placeholder;
+  });
+
+  // Step 2: extract inline code into placeholders too (must not survive as raw
+  // <code> HTML into the blanket escape below, or it'd get double-escaped)
+  const inlineCode = [];
+  text = text.replace(/`([^`\n]+)`/g, (_, code) => {
+    const placeholder = `\x00ICODE${inlineCode.length}\x00`;
+    inlineCode.push(`<code>${escHtml(code)}</code>`);
+    return placeholder;
+  });
+
+  // Step 3: extract links into copyable link boxes (also placeholder'd — same
+  // reason as inline code above). Markdown-style [label](url) is matched
+  // FIRST — otherwise the bare-URL pass below would treat the label URL and
+  // the href URL as one run-on match and swallow the `](` between them.
+  const linkBoxes = [];
+  const makeLinkBox = (url, label) => {
+    const placeholder = `\x00LINK${linkBoxes.length}\x00`;
+    const safeUrl = escHtml(url);
+    const display = (label && label !== url) ? `${escHtml(label)} — ${safeUrl}` : safeUrl;
+    linkBoxes.push(`<span class="link-box"><span class="link-url">${display}</span><button class="copy-btn link-copy-btn" data-url="${safeUrl}" onclick="copyLink(this)">COPY</button></span>`);
+    return placeholder;
+  };
+  text = text.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, (_, label, url) => makeLinkBox(url, label));
+  // Bare URLs — excludes [ ] ( ) too so it can't run into adjacent markdown
+  // link brackets or unencoded parens; a real URL with parens is rare enough
+  // to accept truncating over the alternative of swallowing surrounding text.
+  text = text.replace(/(https?:\/\/[^\s<>"'()[\]]+)/g, (match) => {
+    // Don't swallow trailing sentence punctuation into the URL itself.
+    const trailing = match.match(/[.,;:!?]+$/);
+    const suffix = trailing ? trailing[0] : '';
+    const url = suffix ? match.slice(0, -suffix.length) : match;
+    if (!url) return match;
+    return makeLinkBox(url) + suffix;
+  });
+
+  // Step 4: everything left is raw model text — escape it for HTML safety
+  // BEFORE applying our own markdown-to-HTML regexes below. This is the only
+  // thing standing between "the model said something that looks like a tag"
+  // and it actually executing in the DOM (fetch_url/search_web content flows
+  // through here, so this isn't hypothetical).
+  text = escHtml(text);
+
+  // Step 5: inline formatting (safe now — escHtml doesn't touch *, #, -, etc.)
+  text = text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,  '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,   '<h1>$1</h1>')
+    .replace(/^---$/gm, '<hr>')
+    .replace(/^\s*[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+  // Step 6: paragraphs — split on blank lines, wrap non-block content
+  text = text.split(/\n{2,}/).map(block => {
+    block = block.trim();
+    if (!block) return '';
+    if (/^\x00CODE\d+\x00$/.test(block)) return block;
+    if (/^<(ul|ol|pre|h[1-3]|hr)/.test(block)) return block;
+    const lines = block.split('\n').map(line => {
+      line = line.trim();
+      if (!line) return '';
+      if (/^\x00CODE\d+\x00$/.test(line)) return line;
+      if (/^<(ul|ol|pre|h[1-3]|hr|li)/.test(line)) return line;
+      return line;
+    });
+    const joined = lines.join('<br>');
+    if (/^<(ul|ol|pre|h[1-3]|hr|li)/.test(joined)) return joined;
+    return '<p>' + joined + '</p>';
+  }).join('');
+
+  // Step 7: restore placeholders
+  text = text.replace(/\x00CODE(\d+)\x00/g, (_, i) => codeBlocks[+i]);
+  text = text.replace(/\x00ICODE(\d+)\x00/g, (_, i) => inlineCode[+i]);
+  text = text.replace(/\x00LINK(\d+)\x00/g, (_, i) => linkBoxes[+i]);
+
+  return text;
+}
+function escHtml(str) { return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function copyLink(btn) {
+  const url = btn.getAttribute('data-url');
+  navigator.clipboard.writeText(url).then(() => {
+    btn.textContent = 'COPIED';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+function copyCode(btn) {
+  const code = btn.nextElementSibling.innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'COPIED';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'COPY'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ── RAG memory panel ─────────────────────────────────────────────────────
+const memoryState = { offset: 0, limit: 50, total: 0, q: '', searchTimer: null };
+
+function openMemoryPanel() {
+  document.getElementById('memory-overlay').classList.add('open');
+  memoryState.offset = 0;
+  loadMemoryList();
+}
+
+function closeMemoryPanel() {
+  document.getElementById('memory-overlay').classList.remove('open');
+}
+
+function onMemorySearchInput() {
+  clearTimeout(memoryState.searchTimer);
+  memoryState.searchTimer = setTimeout(() => {
+    memoryState.q = document.getElementById('memory-search').value.trim();
+    memoryState.offset = 0;
+    loadMemoryList();
+  }, 250);
+}
+
+function memoryPage(dir) {
+  const next = memoryState.offset + dir * memoryState.limit;
+  if (next < 0 || next >= memoryState.total) return;
+  memoryState.offset = next;
+  loadMemoryList();
+}
+
+async function loadMemoryList() {
+  const list = document.getElementById('memory-list');
+  list.innerHTML = '<div id="memory-empty">Loading…</div>';
+  try {
+    const params = new URLSearchParams({ limit: memoryState.limit, offset: memoryState.offset });
+    if (memoryState.q) params.set('q', memoryState.q);
+    const res = await fetch(`${CONFIG.API_URL}/memory?${params}`);
+    const data = await res.json();
+    memoryState.total = data.total;
+    renderMemoryList(data.rows);
+    updateMemoryChrome();
+  } catch (e) {
+    list.innerHTML = '<div id="memory-empty">Failed to load memory.</div>';
+  }
+}
+
+function updateMemoryChrome() {
+  document.getElementById('memory-count').textContent = `${memoryState.total} embedded`;
+  const page = Math.floor(memoryState.offset / memoryState.limit) + 1;
+  const pages = Math.max(1, Math.ceil(memoryState.total / memoryState.limit));
+  document.getElementById('memory-page-label').textContent = `${page} / ${pages}`;
+  document.getElementById('memory-prev').disabled = memoryState.offset <= 0;
+  document.getElementById('memory-next').disabled = memoryState.offset + memoryState.limit >= memoryState.total;
+}
+
+function renderMemoryList(rows) {
+  const list = document.getElementById('memory-list');
+  if (!rows || rows.length === 0) {
+    list.innerHTML = '<div id="memory-empty">Nothing stored yet.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(r => {
+    const p = PERSONAS.find(x => x.id === r.persona);
+    const when = new Date(r.created_at).toLocaleString();
+    return `
+    <div class="memory-row" id="memrow-${r.message_id}">
+      <div class="memory-row-dot">${GLYPH}</div>
+      <div class="memory-row-body">
+        <div class="memory-row-meta">
+          <span>${p ? p.name : r.persona}</span>
+          <span>${escHtml(r.chat_title)}</span>
+          <span>${r.role}</span>
+          <span>${when}</span>
+        </div>
+        <div class="memory-row-text">${escHtml(r.content)}</div>
+      </div>
+      <button class="memory-row-del" onclick="deleteMemoryEntry(${r.message_id})">Forget</button>
+    </div>`;
+  }).join('');
+}
+
+async function deleteMemoryEntry(messageId) {
+  try {
+    await fetch(`${CONFIG.API_URL}/memory/${messageId}`, { method: 'DELETE' });
+    const row = document.getElementById(`memrow-${messageId}`);
+    if (row) row.remove();
+    memoryState.total = Math.max(0, memoryState.total - 1);
+    updateMemoryChrome();
+    if (document.getElementById('memory-list').children.length === 0) loadMemoryList();
+  } catch (e) { console.error('Failed to forget memory entry:', e); }
+}
+
+init();
+</script>
+</body>
+</html>

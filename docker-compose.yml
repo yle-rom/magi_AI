@@ -1,0 +1,47 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: magi-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MAGI_DB_PASS}
+      MARIADB_DATABASE: magidb
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/mariadb:/var/lib/mysql
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MAGI_DB_PASS}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  searxng:
+    image: searxng/searxng
+    container_name: searxng
+    stop_grace_period: 2s
+    ports:
+      - "8888:8080"
+    volumes:
+      - /home/ely/.config/searxng:/etc/searxng
+
+  searxng-proxy:
+    image: nginx:alpine
+    container_name: searxng-proxy
+    stop_grace_period: 2s
+    network_mode: host
+    command: >
+      sh -c "
+      echo 'server {
+        listen 8889;
+        location / {
+          proxy_pass http://127.0.0.1:8888;
+          add_header Access-Control-Allow-Origin \"*\" always;
+          add_header Access-Control-Allow-Methods \"GET, OPTIONS\" always;
+          add_header Access-Control-Allow-Headers \"*\" always;
+          if ($$request_method = OPTIONS) { return 204; }
+        }
+      }' > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
+    depends_on:
+      - searxng
