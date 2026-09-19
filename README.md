@@ -26,6 +26,23 @@ Ollama loads one persona's model at a time (models swap on demand, not all resid
 
 ## Setup
 
+### Installing prerequisites
+
+```bash
+# Node.js + npm — via your package manager, or https://nodejs.org
+# Arch: sudo pacman -S nodejs npm
+# Debian/Ubuntu: sudo apt install nodejs npm
+
+# Docker + Docker Compose — https://docs.docker.com/engine/install/
+# Arch: sudo pacman -S docker docker-compose && sudo systemctl enable --now docker
+# Debian/Ubuntu: see Docker's official install docs (their repo, not apt's outdated package)
+# Either way, add yourself to the docker group so you don't need sudo for docker commands:
+sudo usermod -aG docker $USER   # log out/in (or `newgrp docker`) for this to take effect
+
+# Ollama — https://ollama.com
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
 ```bash
 # 1. Pull the models each persona uses, plus the RAG embedding model
 ollama pull qwen3:8b
