@@ -7,7 +7,8 @@ A local, multi-persona LLM assistant built on Electron + Node/Express + MariaDB.
 - **Node.js** (see `package.json`/Electron 40.x compatibility) and `npm`
 - **Docker** + **Docker Compose** (for MariaDB and SearXNG)
 - **[Ollama](https://ollama.com)** installed directly on the host (not containerized, for simple GPU passthrough)
-- **OS**: developed and tested on Arch Linux. `launch.sh` uses `pgrep`/`kill` (Linux/BSD-style process tools) — Windows users will need WSL or manual equivalents; macOS should mostly work but is untested.
+- **OS**: developed and tested on Arch Linux + Hyprland. `launch.sh` uses `pgrep`/`kill` (Linux/BSD-style process tools) — Windows users will need WSL or manual equivalents; macOS should mostly work but is untested.
+- **Tiling window managers**: `main.js` requests an initial window size (1280x800), but under a tiling WM (Hyprland, i3, sway, etc.) that's just a hint — your WM will tile the window into whatever slot it normally would, ignoring the requested size. This is expected Electron-under-tiling-WM behavior, not a bug.
 
 ### VRAM / disk
 
