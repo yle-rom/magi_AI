@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/ely/.local/src/magi_AI
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # ── Load environment ──────────────────────
 if [ -f .env ]; then
@@ -9,7 +9,7 @@ if [ -f .env ]; then
 fi
 
 # ── Dedup check ──────────────────────────
-if pgrep -f "electron \." > /dev/null || pgrep -f "electron /home/ely/magi-app" > /dev/null; then
+if pgrep -f "electron \." > /dev/null; then
   echo "MAGI already running."
   exit 0
 fi
