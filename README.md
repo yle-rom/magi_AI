@@ -89,3 +89,25 @@ The UI is themed with CSS variables (`--wal-bg`, `--wal-fg`, `--wal-accent`) def
 ## ⚠️ Content warning: `magi-unlocked`
 
 One included persona, `magi-unlocked`, is deliberately built with no refusals or safety guardrails, on the premise that it's a single person talking to a model on their own hardware. It's meant for personal local use only. If you don't want this persona available, delete its entry from `config.js` and remove `prompts/magi-unlocked.md` (and `prompts_example/magi-unlocked.md` in your own fork) before running.
+
+## Demo
+
+**MAGI-CORE** — general chat persona:
+
+![MAGI-CORE chat](docs/screenshots/magi-core-chat.png)
+
+**RAG memory** — inspecting embedded conversation history:
+
+![RAG memory panel](docs/screenshots/rag-memory.png)
+
+**MAGI-CODE** — sandboxed terminal commands require explicit approval:
+
+![Terminal command approval](docs/screenshots/magi-code-terminal-approval.png)
+
+**MAGI-CODE** — file changes are shown as a diff before anything touches disk:
+
+![File overwrite diff](docs/screenshots/magi-code-file-overwrite.png)
+
+**MAGI-CODE** — sequential edits, each approved individually:
+
+![File edit diffs approved](docs/screenshots/magi-code-edit-approved.png)
